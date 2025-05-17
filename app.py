@@ -4,6 +4,7 @@ import json
 import re
 import time
 import base64
+import threading
 
 # 設置頁面配置
 st.set_page_config(
@@ -60,6 +61,27 @@ st.markdown("""
         h1, h2, h3 {
             font-size: 1.5rem !important;
         }
+        iframe {
+            height: 80px !important;
+        }
+    }
+    
+    /* 自定義按鈕樣式，特別針對行動設備 */
+    .custom-button {
+        display: inline-block;
+        background-color: #0abab5;
+        color: white !important;
+        padding: 8px 16px;
+        text-decoration: none;
+        border-radius: 4px;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+        font-weight: bold;
+        margin: 5px 0;
+    }
+    .download-button {
+        background-color: #2c3e50;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -163,40 +185,45 @@ if st.button("送出分析"):
             
             if match and match.group(1):
                 file_id = match.group(1)
-                # 使用多種可能的音訊源格式
-                direct_src = f"https://drive.google.com/uc?export=download&id={file_id}"
+                
+                st.header("🎧 助眠音樂：")
+                
+                # 為移動設備提供更好的播放體驗
+                # 使用iframe嵌入Google Drive預覽，這對移動設備更友好
                 embed_src = f"https://drive.google.com/file/d/{file_id}/preview"
                 
-                st.header("🎧 點擊下方播放助眠音樂：")
+                st.markdown(f"""
+                <div style="width:100%; margin:10px 0;">
+                    <iframe src="{embed_src}" width="100%" height="115" frameborder="0" 
+                    allow="autoplay; encrypted-media" allowfullscreen style="border-radius:8px;"></iframe>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # 使用Streamlit內置音訊播放器
-                try:
-                    audio_file = requests.get(direct_src, timeout=10)
-                    if audio_file.status_code == 200:
-                        st.audio(audio_file.content, format="audio/mp3")
-                    else:
-                        # 如果直接下載失敗，使用嵌入播放器
-                        st.markdown(f"""
-                        <iframe src="{embed_src}" width="100%" height="100" frameborder="0" allow="autoplay"></iframe>
-                        <p>如果上方播放器無法使用，請<a href="https://drive.google.com/file/d/{file_id}/view" target="_blank">點擊此處</a>在新分頁中開啟音樂。</p>
-                        """, unsafe_allow_html=True)
-                except:
-                    # 作為備用，提供直接連結
+                # 提供多種訪問方式，確保各類設備都能訪問
+                col1, col2 = st.columns(2)
+                
+                with col1:
                     st.markdown(f"""
-                    <p>音樂檔案載入失敗，請<a href="https://drive.google.com/file/d/{file_id}/view" target="_blank">點擊此處</a>在新分頁中開啟播放。</p>
+                    <a href="https://drive.google.com/file/d/{file_id}/view" target="_blank" 
+                    style="display:inline-block; background-color:#0abab5; color:white; 
+                    padding:8px 16px; text-decoration:none; border-radius:4px; 
+                    text-align:center; width:100%; box-sizing:border-box;">
+                    📱 在Google Drive開啟</a>
                     """, unsafe_allow_html=True)
                 
-                # 增加下載按鈕
-                try:
-                    st.download_button(
-                        label="下載助眠音樂檔案",
-                        data=requests.get(direct_src, timeout=10).content,
-                        file_name="睡眠助理音樂.mp3",
-                        mime="audio/mpeg"
-                    )
-                except:
-                    st.warning("下載功能暫時無法使用，請使用Google Drive連結下載")
-                    st.markdown(f'[點擊此處下載音樂](https://drive.google.com/file/d/{file_id}/view?usp=sharing)')
+                with col2:
+                    direct_link = f"https://drive.google.com/uc?export=download&id={file_id}"
+                    st.markdown(f"""
+                    <a href="{direct_link}" target="_blank" 
+                    style="display:inline-block; background-color:#2c3e50; color:white; 
+                    padding:8px 16px; text-decoration:none; border-radius:4px; 
+                    text-align:center; width:100%; box-sizing:border-box;">
+                    💾 直接下載音樂</a>
+                    """, unsafe_allow_html=True)
+                
+                # 給用戶一些提示
+                st.info("💡 小提示：如果播放器無法正常運作，請嘗試「在Google Drive開啟」或「直接下載音樂」選項。")
+                
                     
         else:
             st.error("未收到有效的分析結果。")
