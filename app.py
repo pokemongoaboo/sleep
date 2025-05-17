@@ -4,7 +4,6 @@ import json
 import re
 import time
 import base64
-import threading
 
 # 設置頁面配置
 st.set_page_config(
@@ -61,51 +60,6 @@ st.markdown("""
         h1, h2, h3 {
             font-size: 1.5rem !important;
         }
-        iframe {
-            height: 80px !important;
-        }
-    }
-    
-    /* 自定義按鈕樣式，特別針對行動設備 */
-    .custom-button {
-        display: inline-block;
-        background-color: #0abab5;
-        color: white !important;
-        padding: 8px 16px;
-        text-decoration: none;
-        border-radius: 4px;
-        text-align: center;
-        width: 100%;
-        box-sizing: border-box;
-        font-weight: bold;
-        margin: 5px 0;
-    }
-    .download-button {
-        background-color: #2c3e50;
-    }
-    
-    /* 預設選項按鈕樣式 */
-    .preset-option {
-        background-color: #f0f8f7;
-        border: 1px solid #0abab5;
-        border-radius: 5px;
-        padding: 10px;
-        margin: 5px 0;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    .preset-option:hover {
-        background-color: #e6f7f6;
-        transform: translateY(-2px);
-    }
-    .preset-option h4 {
-        margin: 0;
-        color: #0abab5;
-    }
-    .preset-option p {
-        margin: 5px 0 0 0;
-        font-size: 0.9rem;
-        color: #333;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -113,41 +67,10 @@ st.markdown("""
 # 標題
 st.title("睡眠助理小幫手")
 
-# 定義預設選項
-preset_options = {
-    "失眠困擾": "我最近都睡不著，躺在床上輾轉反側至少一小時才能入睡，即使睡著了也容易醒來，感覺睡眠品質很差，白天精神不濟，注意力難以集中。",
-    "壓力與焦慮": "工作壓力太大，晚上腦袋一直在想事情，無法放鬆，經常夢到工作相關的事情，醒來後感到疲憊，情緒也很容易緊張和焦慮。",
-    "淺眠多夢": "睡覺時容易做很多夢，睡眠很淺，一點聲音就會醒來，感覺沒有真正休息好，早上起床時還是很累，這種情況已經持續好幾個月了。",
-    "規律作息被打亂": "最近因為加班和生活節奏改變，作息完全不規律，有時候凌晨才睡，有時候下午才起床，感覺生理時鐘被打亂了，想恢復正常但很困難。",
-    "疲勞但睡不著": "身體很疲勞，但躺下後反而精神變好，無法入睡。即使勉強睡著，睡眠時間也不足，白天感到疲憊不堪，影響了工作和生活質量。"
-}
-
 # 用戶輸入區
 st.header("請輸入你的睡眠狀況：")
-
-# 預設選項區塊
-st.subheader("或選擇以下常見睡眠問題：")
-selected_preset = None
-
-# 建立兩列排版
-col1, col2 = st.columns(2)
-
-# 前三個選項在第一列
-with col1:
-    for i, (title, content) in enumerate(list(preset_options.items())[:3]):
-        if st.button(f"{title}", key=f"preset_{i}"):
-            selected_preset = content
-
-# 後兩個選項在第二列
-with col2:
-    for i, (title, content) in enumerate(list(preset_options.items())[3:]):
-        if st.button(f"{title}", key=f"preset_{i+3}"):
-            selected_preset = content
-
-# 文字輸入區域
 user_input = st.text_area(
     label="",
-    value=selected_preset if selected_preset else "",
     placeholder="例如：我最近都睡不到 5 小時...",
     height=150
 )
@@ -189,6 +112,7 @@ if st.button("送出分析"):
                 return {"result": f"❌ 發送請求失敗，請確認網路或伺服器狀態\n{str(e)}"}
         
         # 在背景執行請求
+        import threading
         result = {"data": None}
         
         def background_request():
@@ -239,45 +163,40 @@ if st.button("送出分析"):
             
             if match and match.group(1):
                 file_id = match.group(1)
-                
-                st.header("🎧 助眠音樂：")
-                
-                # 為移動設備提供更好的播放體驗
-                # 使用iframe嵌入Google Drive預覽，這對移動設備更友好
+                # 使用多種可能的音訊源格式
+                direct_src = f"https://drive.google.com/uc?export=download&id={file_id}"
                 embed_src = f"https://drive.google.com/file/d/{file_id}/preview"
                 
-                st.markdown(f"""
-                <div style="width:100%; margin:10px 0;">
-                    <iframe src="{embed_src}" width="100%" height="115" frameborder="0" 
-                    allow="autoplay; encrypted-media" allowfullscreen style="border-radius:8px;"></iframe>
-                </div>
-                """, unsafe_allow_html=True)
+                st.header("🎧 點擊下方播放助眠音樂：")
                 
-                # 提供多種訪問方式，確保各類設備都能訪問
-                col1, col2 = st.columns(2)
-                
-                with col1:
+                # 使用Streamlit內置音訊播放器
+                try:
+                    audio_file = requests.get(direct_src, timeout=10)
+                    if audio_file.status_code == 200:
+                        st.audio(audio_file.content, format="audio/mp3")
+                    else:
+                        # 如果直接下載失敗，使用嵌入播放器
+                        st.markdown(f"""
+                        <iframe src="{embed_src}" width="100%" height="100" frameborder="0" allow="autoplay"></iframe>
+                        <p>如果上方播放器無法使用，請<a href="https://drive.google.com/file/d/{file_id}/view" target="_blank">點擊此處</a>在新分頁中開啟音樂。</p>
+                        """, unsafe_allow_html=True)
+                except:
+                    # 作為備用，提供直接連結
                     st.markdown(f"""
-                    <a href="https://drive.google.com/file/d/{file_id}/view" target="_blank" 
-                    style="display:inline-block; background-color:#0abab5; color:white; 
-                    padding:8px 16px; text-decoration:none; border-radius:4px; 
-                    text-align:center; width:100%; box-sizing:border-box;">
-                    📱 在Google Drive開啟</a>
+                    <p>音樂檔案載入失敗，請<a href="https://drive.google.com/file/d/{file_id}/view" target="_blank">點擊此處</a>在新分頁中開啟播放。</p>
                     """, unsafe_allow_html=True)
                 
-                with col2:
-                    direct_link = f"https://drive.google.com/uc?export=download&id={file_id}"
-                    st.markdown(f"""
-                    <a href="{direct_link}" target="_blank" 
-                    style="display:inline-block; background-color:#2c3e50; color:white; 
-                    padding:8px 16px; text-decoration:none; border-radius:4px; 
-                    text-align:center; width:100%; box-sizing:border-box;">
-                    💾 直接下載音樂</a>
-                    """, unsafe_allow_html=True)
-                
-                # 給用戶一些提示
-                st.info("💡 小提示：如果播放器無法正常運作，請嘗試「在Google Drive開啟」或「直接下載音樂」選項。")
-                
+                # 增加下載按鈕
+                try:
+                    st.download_button(
+                        label="下載助眠音樂檔案",
+                        data=requests.get(direct_src, timeout=10).content,
+                        file_name="睡眠助理音樂.mp3",
+                        mime="audio/mpeg"
+                    )
+                except:
+                    st.warning("下載功能暫時無法使用，請使用Google Drive連結下載")
+                    st.markdown(f'[點擊此處下載音樂](https://drive.google.com/file/d/{file_id}/view?usp=sharing)')
                     
         else:
             st.error("未收到有效的分析結果。")
