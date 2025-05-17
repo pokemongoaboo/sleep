@@ -1,8 +1,8 @@
 [theme]
-primaryColor = "#6675e0"
-backgroundColor = "#f0f2f6"
-secondaryBackgroundColor = "#e0e5ff"
-textColor = "#262730"
+primaryColor = "#0abab5"        # Tiffany綠主色調
+backgroundColor = "#f0f8f7"     # 極淺Tiffany綠背景
+secondaryBackgroundColor = "#bfe8e5"  # 淺Tiffany綠次要背景
+textColor = "#2c3e50"           # 深藍灰文字色
 font = "sans serif"
 
 [server]
