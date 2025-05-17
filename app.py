@@ -1,343 +1,168 @@
 import streamlit as st
+import requests
+import json
+import re
 import time
-import random
+import base64
 
 # 設置頁面配置
 st.set_page_config(
-    page_title="睡前日記",
-    page_icon="🌙",
-    layout="centered",
+    page_title="睡眠助理小幫手",
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# 定義一些CSS樣式
+# 自定義CSS來改善行動裝置上的顯示效果
 st.markdown("""
 <style>
-    .main {
-        background-color: #1e2a38;
-        color: #f0f2f6;
-        font-family: 'Arial', sans-serif;
+    body {
+        font-family: "Microsoft JhengHei", sans-serif;
+    }
+    .stTextArea textarea {
+        font-size: 1rem;
     }
     .stButton button {
-        background-color: #4e7496;
-        color: white;
-        border-radius: 20px;
-        padding: 10px 24px;
-        margin: 10px 0;
-        border: none;
+        width: 100%;
+        font-size: 1rem;
+        padding: 0.5rem 1rem;
+        margin-top: 0.5rem;
+    }
+    .result-area {
+        white-space: pre-wrap;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        min-height: 100px;
+    }
+    audio {
         width: 100%;
     }
-    .stButton button:hover {
-        background-color: #375980;
-    }
-    h1, h2, h3 {
-        color: #8ab4e8;
-    }
-    .option-card {
-        background-color: #2c3e50;
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
-        cursor: pointer;
-        transition: transform 0.3s;
-    }
-    .option-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-    }
-    .footer {
-        margin-top: 50px;
-        text-align: center;
-        font-size: 12px;
-        color: #8ab4e8;
-    }
-    .result-container {
-        padding: 20px;
-        background-color: #2c3e50;
-        border-radius: 10px;
-        margin-top: 20px;
-    }
-    .image-option {
-        cursor: pointer;
-        transition: transform 0.3s;
-        margin: 10px;
-        border-radius: 10px;
-        overflow: hidden;
-    }
-    .image-option:hover {
-        transform: scale(1.05);
-    }
-    .selected {
-        border: 3px solid #8ab4e8;
+    
+    /* 行動裝置適應性設計 */
+    @media (max-width: 768px) {
+        .stTextArea textarea {
+            font-size: 0.9rem;
+        }
+        h1, h2, h3 {
+            font-size: 1.5rem !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 初始化session state變量
-if 'page' not in st.session_state:
-    st.session_state.page = 1
-    
-if 'good_deed' not in st.session_state:
-    st.session_state.good_deed = ""
-    
-if 'happy_moment' not in st.session_state:
-    st.session_state.happy_moment = ""
-    
-if 'tomorrow_tasks' not in st.session_state:
-    st.session_state.tomorrow_tasks = ""
-    
-if 'mood' not in st.session_state:
-    st.session_state.mood = ""
-    
-if 'selected_image' not in st.session_state:
-    st.session_state.selected_image = None
-    
-if 'music_link' not in st.session_state:
-    st.session_state.music_link = ""
+# 標題
+st.title("睡眠助理小幫手")
 
-# 定義頁面導航函數
-def go_to_page(page_number):
-    st.session_state.page = page_number
-    
-def skip_to_end():
-    st.session_state.page = 6  # 結果頁面
+# 用戶輸入區
+st.header("請輸入你的睡眠狀況：")
+user_input = st.text_area(
+    label="",
+    placeholder="例如：我最近都睡不到 5 小時...",
+    height=150
+)
 
-def select_preset(field, value):
-    if field == "good_deed":
-        st.session_state.good_deed = value
-    elif field == "happy_moment":
-        st.session_state.happy_moment = value
-    elif field == "tomorrow_tasks":
-        st.session_state.tomorrow_tasks = value
-    elif field == "mood":
-        st.session_state.mood = value
-        
-def select_image(image_number):
-    st.session_state.selected_image = image_number
-
-# 預設選項
-good_deed_options = ["幫助了同事解決問題", "整理了公共空間", "關心了家人/朋友"]
-happy_moment_options = ["享受了美食", "聽了喜歡的音樂", "完成了一項任務"]
-tomorrow_tasks_options = ["準備重要會議", "聯繫客戶/同事", "整理工作空間"]
-mood_options = ["平靜", "疲憊", "滿足", "焦慮", "期待"]
-
-# 模擬音樂推薦API
-def get_music_recommendation(user_data):
-    music_options = [
-        "輕柔鋼琴曲 - 夜的詩篇",
-        "自然聲音 - 雨天森林",
-        "冥想音樂 - 深度放鬆",
-        "環境音樂 - 海浪與微風",
-        "古典樂 - 夜曲集"
-    ]
-    
-    # 模擬API處理時間
-    time.sleep(2)
-    
-    # 根據用戶數據選擇音樂 (實際應用中這裡會有真正的推薦算法)
-    # 這裡只是簡單示範，實際可能需要更複雜的邏輯
-    if "焦慮" in user_data.get('mood', ''):
-        return music_options[1]  # 雨天森林
-    elif "疲憊" in user_data.get('mood', ''):
-        return music_options[2]  # 深度放鬆
-    elif "滿足" in user_data.get('mood', ''):
-        return music_options[0]  # 鋼琴曲
+# 提交按鈕和處理邏輯
+if st.button("送出分析"):
+    if not user_input.strip():
+        st.error("⚠️ 請先輸入一些內容再送出！")
     else:
-        return random.choice(music_options)
-
-# 應用主體
-st.title("🌙 睡前日記")
-
-# 第一頁 - 開始界面
-if st.session_state.page == 1:
-    st.header("準備好進入今天的睡前儀式了嗎？")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("我準備好了，開始吧", key="start_yes"):
-            go_to_page(2)
-    with col2:
-        if st.button("我不想寫，想直接睡覺", key="start_no"):
-            skip_to_end()
-            
-# 第二頁 - 好事
-elif st.session_state.page == 2:
-    st.header("我今天做的好事")
-    st.caption("請隨意書寫，沒有也沒關係")
-    
-    # 顯示預設選項
-    st.write("你可以選擇以下預設選項或自行輸入:")
-    cols = st.columns(3)
-    for i, option in enumerate(good_deed_options):
-        with cols[i]:
-            if st.button(option, key=f"good_deed_{i}"):
-                select_preset("good_deed", option)
-    
-    # 文本輸入
-    st.session_state.good_deed = st.text_area("或者在這裡書寫", value=st.session_state.good_deed, height=100)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("接下一題", key="good_deed_next"):
-            go_to_page(3)
-    with col2:
-        if st.button("我不想寫，直接睡覺", key="good_deed_skip"):
-            skip_to_end()
-
-# 第三頁 - 美好事物
-elif st.session_state.page == 3:
-    st.header("我今天經歷的美好事物/幸福時刻")
-    st.caption("請隨意書寫，沒有也沒關係")
-    
-    # 顯示預設選項
-    st.write("你可以選擇以下預設選項或自行輸入:")
-    cols = st.columns(3)
-    for i, option in enumerate(happy_moment_options):
-        with cols[i]:
-            if st.button(option, key=f"happy_moment_{i}"):
-                select_preset("happy_moment", option)
-    
-    # 文本輸入
-    st.session_state.happy_moment = st.text_area("或者在這裡書寫", value=st.session_state.happy_moment, height=100)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("接下一題", key="happy_moment_next"):
-            go_to_page(4)
-    with col2:
-        if st.button("我不想寫，直接睡覺", key="happy_moment_skip"):
-            skip_to_end()
-
-# 第四頁 - 明天的事情
-elif st.session_state.page == 4:
-    st.header("整理寫下明天將要做的事情")
-    st.caption("讓它們從腦袋卸下")
-    
-    # 顯示預設選項
-    st.write("你可以選擇以下預設選項或自行輸入:")
-    cols = st.columns(3)
-    for i, option in enumerate(tomorrow_tasks_options):
-        with cols[i]:
-            if st.button(option, key=f"tomorrow_tasks_{i}"):
-                select_preset("tomorrow_tasks", option)
-    
-    # 文本輸入
-    st.session_state.tomorrow_tasks = st.text_area("或者在這裡書寫", value=st.session_state.tomorrow_tasks, height=100)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("接下一題", key="tomorrow_tasks_next"):
-            go_to_page(5)
-    with col2:
-        if st.button("我不想寫，直接睡覺", key="tomorrow_tasks_skip"):
-            skip_to_end()
-
-# 第五頁 - 心情與圖片選擇
-elif st.session_state.page == 5:
-    st.header("您今天的心情如何?")
-    st.subheader("以下哪張圖片最適合您目前睡前的感受")
-    
-    # 心情選項
-    st.write("選擇您的心情:")
-    mood_cols = st.columns(5)
-    for i, option in enumerate(mood_options):
-        with mood_cols[i]:
-            if st.button(option, key=f"mood_{i}"):
-                select_preset("mood", option)
-    
-    # 文本輸入
-    st.session_state.mood = st.text_input("或者描述您的心情:", value=st.session_state.mood)
-    
-    # 圖片選擇
-    st.write("選擇一張最符合您感受的圖片:")
-    
-    # 顯示圖片選項 (這裡使用占位圖片，實際應用中需替換為真實圖片)
-    img_cols = st.columns(3)
-    
-    # 使用placeholder API生成不同風格的圖片
-    for i in range(3):
-        with img_cols[i]:
-            # 使用不同的顏色來模擬不同的圖片
-            colors = ["blue", "purple", "green"]
-            style_names = ["平靜的湖面", "星空下的森林", "溫暖的日落"]
-            
-            # 建立圖片區塊
-            st.markdown(f"""
-            <div class="image-option {st.session_state.selected_image == i+1 and 'selected' or ''}" 
-                onclick="document.querySelector('#select_img_{i+1}').click()">
-                <img src="/api/placeholder/300/200" alt="{style_names[i]}" width="100%">
-                <p style="text-align:center">{style_names[i]}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # 隱藏按鈕，用於JavaScript觸發
-            if st.button("選擇", key=f"select_img_{i+1}", help=f"選擇 {style_names[i]}", 
-                         style="display:none;"):
-                select_image(i+1)
-    
-    st.markdown("### 謝謝您對自己今天的回饋，接下來讓我來幫忙您規劃，祝您有個好夢。")
-    
-    if st.button("送出", key="submit_all"):
-        # 準備所有使用者數據
-        user_data = {
-            "good_deed": st.session_state.good_deed,
-            "happy_moment": st.session_state.happy_moment,
-            "tomorrow_tasks": st.session_state.tomorrow_tasks,
-            "mood": st.session_state.mood,
-            "selected_image": st.session_state.selected_image
-        }
+        # 創建一個占位符來顯示進度
+        progress_placeholder = st.empty()
         
-        # 這裡會真正發送到後端API，但現在我們模擬處理
-        st.session_state.user_data = user_data
-        go_to_page(6)
-
-# 第六頁 - 等待和結果頁面
-elif st.session_state.page == 6:
-    # 如果還沒有音樂推薦，顯示等待畫面
-    if not st.session_state.get("music_link"):
-        st.markdown("## 正在為您規劃今天的夢境旅程...")
-        
-        # 顯示加載動畫
+        # 顯示分析中的倒數計時器
+        counter = 100
         progress_bar = st.progress(0)
-        for i in range(100):
-            time.sleep(0.03)  # 模擬處理時間
-            progress_bar.progress(i + 1)
         
-        # 獲取推薦音樂
-        user_data = st.session_state.get("user_data", {})
-        recommended_music = get_music_recommendation(user_data)
-        st.session_state.music_link = recommended_music
+        for i in range(counter):
+            # 更新倒數計時器
+            progress_placeholder.markdown(f"🧠 睡眠助理正在分析中，請稍候...（{counter - i} 秒）")
+            progress_bar.progress((i + 1) / counter)
+            
+            # 發送請求，只在第一次迭代時執行
+            if i == 0:
+                try:
+                    response_future = requests.post(
+                        "https://sleep.zeabur.app/webhook/c8f29e8a-3796-43f8-940a-23b061039ff2",
+                        headers={"Content-Type": "application/json"},
+                        json={"user_input": user_input},
+                        timeout=95  # 設置超時時間稍短於倒計時
+                    )
+                    
+                    # 檢查響應是否成功
+                    if response_future.status_code == 200:
+                        try:
+                            data = response_future.json()
+                            # 成功獲取數據，停止倒計時
+                            break
+                        except json.JSONDecodeError:
+                            # 如果不是有效的JSON，嘗試解析文本
+                            text_response = response_future.text
+                            try:
+                                data = json.loads(text_response)
+                                # 成功解析，停止倒計時
+                                break
+                            except:
+                                # 無法解析為JSON，保存原始文本
+                                data = {"result": f"⚠️ 無法解析回應內容：\n\n{text_response}"}
+                                # 停止倒計時
+                                break
+                    else:
+                        data = {"result": f"❌ 伺服器回應錯誤：HTTP代碼 {response_future.status_code}"}
+                        # 停止倒計時
+                        break
+                        
+                except Exception as e:
+                    data = {"result": f"❌ 發送請求失敗，請確認網路或伺服器狀態\n{str(e)}"}
+                    # 發生錯誤，停止倒計時
+                    break
+            
+            # 模擬處理時間，每次迭代暫停約1秒
+            time.sleep(1)
         
-        # 重新加載頁面來顯示結果
-        st.experimental_rerun()
-    
-    # 顯示結果和音樂播放器
-    else:
-        st.header("您的睡前音樂已準備好")
+        # 清除進度顯示
+        progress_placeholder.empty()
+        progress_bar.empty()
         
-        with st.container():
-            st.markdown(f"""
-            <div class="result-container">
-                <h3>今天為您播放的音樂是:</h3>
-                <h2>{st.session_state.music_link}</h2>
-            </div>
-            """, unsafe_allow_html=True)
+        # 顯示結果
+        st.header("分析結果：")
         
-        # 模擬音頻播放器 (實際應用需要整合真實的音頻播放功能)
-        st.markdown("### 音樂播放器")
-        st.audio("/api/placeholder/audio", format="audio/mp3")
-        
-        # 重置按鈕
-        if st.button("開始新的日記", key="restart"):
-            for key in ['page', 'good_deed', 'happy_moment', 'tomorrow_tasks', 
-                        'mood', 'selected_image', 'music_link', 'user_data']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.experimental_rerun()
+        # 檢查是否有結果
+        if "result" in data:
+            st.markdown(f"<div class='result-area'>{data['result']}</div>", unsafe_allow_html=True)
+            
+            # 嘗試抓出 Google Drive 連結
+            result_text = data["result"]
+            match = re.search(r'https://drive\.google\.com/file/d/([a-zA-Z0-9_-]+)/', result_text)
+            
+            if match and match.group(1):
+                file_id = match.group(1)
+                audio_src = f"https://drive.google.com/uc?export=download&id={file_id}"
+                
+                st.header("🎧 點擊下方播放助眠音樂：")
+                
+                # 使用HTML音訊播放器
+                st.markdown(f"""
+                <audio controls autoplay>
+                    <source src="{audio_src}" type="audio/mpeg">
+                    您的瀏覽器不支援播放音樂。
+                </audio>
+                """, unsafe_allow_html=True)
+                
+                # 增加下載按鈕
+                st.download_button(
+                    label="下載助眠音樂檔案",
+                    data=requests.get(audio_src).content,
+                    file_name="睡眠助理音樂.mp3",
+                    mime="audio/mpeg"
+                )
+        else:
+            st.error("未收到有效的分析結果。")
+else:
+    # 首次加載頁面時顯示的預設訊息
+    st.header("分析結果：")
+    st.markdown("<div class='result-area'>尚未送出分析</div>", unsafe_allow_html=True)
 
-# 頁尾
-st.markdown("""
-<div class="footer">
-    睡前日記 © 2025
-</div>
-""", unsafe_allow_html=True)
+# 頁尾資訊
+st.markdown("---")
+st.markdown("© 2025 睡眠助理小幫手 | 使用 Streamlit 開發")
