@@ -26,17 +26,30 @@ st.markdown("""
         font-size: 1rem;
         padding: 0.5rem 1rem;
         margin-top: 0.5rem;
+        background-color: #0abab5 !important;
     }
     .result-area {
         white-space: pre-wrap;
-        border: 1px solid #ddd;
+        border: 1px solid #bfe8e5;
         border-radius: 5px;
         padding: 10px;
-        background-color: #f9f9f9;
+        background-color: #f0f8f7;
         min-height: 100px;
     }
     audio {
         width: 100%;
+    }
+    
+    /* 為Tiffany綠主題添加更多樣式 */
+    .stProgress > div > div {
+        background-color: #0abab5 !important;
+    }
+    h1, h2, h3 {
+        color: #0abab5 !important;
+    }
+    .stAlert {
+        background-color: #e6f7f6 !important;
+        border-left-color: #0abab5 !important;
     }
     
     /* 行動裝置適應性設計 */
@@ -69,63 +82,76 @@ if st.button("送出分析"):
     else:
         # 創建一個占位符來顯示進度
         progress_placeholder = st.empty()
+        status_placeholder = st.empty()
         
         # 顯示分析中的倒數計時器
         counter = 100
         progress_bar = st.progress(0)
         
+        # 發送API請求的函數
+        def send_request():
+            try:
+                response = requests.post(
+                    "https://sleep.zeabur.app/webhook/c8f29e8a-3796-43f8-940a-23b061039ff2",
+                    headers={"Content-Type": "application/json"},
+                    json={"user_input": user_input},
+                    timeout=95
+                )
+                
+                if response.status_code == 200:
+                    try:
+                        return response.json()
+                    except json.JSONDecodeError:
+                        try:
+                            return json.loads(response.text)
+                        except:
+                            return {"result": f"⚠️ 無法解析回應內容：\n\n{response.text}"}
+                else:
+                    return {"result": f"❌ 伺服器回應錯誤：HTTP代碼 {response.status_code}"}
+            except Exception as e:
+                return {"result": f"❌ 發送請求失敗，請確認網路或伺服器狀態\n{str(e)}"}
+        
+        # 在背景執行請求
+        import threading
+        result = {"data": None}
+        
+        def background_request():
+            result["data"] = send_request()
+        
+        thread = threading.Thread(target=background_request)
+        thread.start()
+        
+        # 更新倒數計時器，真正的倒數
         for i in range(counter):
-            # 更新倒數計時器
-            progress_placeholder.markdown(f"🧠 睡眠助理正在分析中，請稍候...（{counter - i} 秒）")
+            if not thread.is_alive() and result["data"] is not None:
+                # 請求完成，可以退出循環
+                progress_placeholder.markdown(f"🧠 分析完成！")
+                progress_bar.progress(1.0)
+                break
+                
+            # 更新倒數計時器和進度條
+            seconds_left = counter - i
+            progress_placeholder.markdown(f"🧠 睡眠助理正在分析中，請稍候...（{seconds_left} 秒）")
+            status_placeholder.info(f"正在進行第 {i+1} 步分析...")
             progress_bar.progress((i + 1) / counter)
             
-            # 發送請求，只在第一次迭代時執行
-            if i == 0:
-                try:
-                    response_future = requests.post(
-                        "https://sleep.zeabur.app/webhook/c8f29e8a-3796-43f8-940a-23b061039ff2",
-                        headers={"Content-Type": "application/json"},
-                        json={"user_input": user_input},
-                        timeout=95  # 設置超時時間稍短於倒計時
-                    )
-                    
-                    # 檢查響應是否成功
-                    if response_future.status_code == 200:
-                        try:
-                            data = response_future.json()
-                            # 成功獲取數據，停止倒計時
-                            break
-                        except json.JSONDecodeError:
-                            # 如果不是有效的JSON，嘗試解析文本
-                            text_response = response_future.text
-                            try:
-                                data = json.loads(text_response)
-                                # 成功解析，停止倒計時
-                                break
-                            except:
-                                # 無法解析為JSON，保存原始文本
-                                data = {"result": f"⚠️ 無法解析回應內容：\n\n{text_response}"}
-                                # 停止倒計時
-                                break
-                    else:
-                        data = {"result": f"❌ 伺服器回應錯誤：HTTP代碼 {response_future.status_code}"}
-                        # 停止倒計時
-                        break
-                        
-                except Exception as e:
-                    data = {"result": f"❌ 發送請求失敗，請確認網路或伺服器狀態\n{str(e)}"}
-                    # 發生錯誤，停止倒計時
-                    break
-            
-            # 模擬處理時間，每次迭代暫停約1秒
+            # 暫停一秒
             time.sleep(1)
+        
+        # 確保線程完成
+        thread.join()
         
         # 清除進度顯示
         progress_placeholder.empty()
+        status_placeholder.empty()
         progress_bar.empty()
         
         # 顯示結果
         st.header("分析結果：")
+        
+        # 檢查是否有結果
+        data = result["data"] if result["data"] is not None else {"result": "❌ 無法獲取分析結果，請稍後重試"}
+        
         
         # 檢查是否有結果
         if "result" in data:
@@ -137,25 +163,41 @@ if st.button("送出分析"):
             
             if match and match.group(1):
                 file_id = match.group(1)
-                audio_src = f"https://drive.google.com/uc?export=download&id={file_id}"
+                # 使用多種可能的音訊源格式
+                direct_src = f"https://drive.google.com/uc?export=download&id={file_id}"
+                embed_src = f"https://drive.google.com/file/d/{file_id}/preview"
                 
                 st.header("🎧 點擊下方播放助眠音樂：")
                 
-                # 使用HTML音訊播放器
-                st.markdown(f"""
-                <audio controls autoplay>
-                    <source src="{audio_src}" type="audio/mpeg">
-                    您的瀏覽器不支援播放音樂。
-                </audio>
-                """, unsafe_allow_html=True)
+                # 使用Streamlit內置音訊播放器
+                try:
+                    audio_file = requests.get(direct_src, timeout=10)
+                    if audio_file.status_code == 200:
+                        st.audio(audio_file.content, format="audio/mp3")
+                    else:
+                        # 如果直接下載失敗，使用嵌入播放器
+                        st.markdown(f"""
+                        <iframe src="{embed_src}" width="100%" height="100" frameborder="0" allow="autoplay"></iframe>
+                        <p>如果上方播放器無法使用，請<a href="https://drive.google.com/file/d/{file_id}/view" target="_blank">點擊此處</a>在新分頁中開啟音樂。</p>
+                        """, unsafe_allow_html=True)
+                except:
+                    # 作為備用，提供直接連結
+                    st.markdown(f"""
+                    <p>音樂檔案載入失敗，請<a href="https://drive.google.com/file/d/{file_id}/view" target="_blank">點擊此處</a>在新分頁中開啟播放。</p>
+                    """, unsafe_allow_html=True)
                 
                 # 增加下載按鈕
-                st.download_button(
-                    label="下載助眠音樂檔案",
-                    data=requests.get(audio_src).content,
-                    file_name="睡眠助理音樂.mp3",
-                    mime="audio/mpeg"
-                )
+                try:
+                    st.download_button(
+                        label="下載助眠音樂檔案",
+                        data=requests.get(direct_src, timeout=10).content,
+                        file_name="睡眠助理音樂.mp3",
+                        mime="audio/mpeg"
+                    )
+                except:
+                    st.warning("下載功能暫時無法使用，請使用Google Drive連結下載")
+                    st.markdown(f'[點擊此處下載音樂](https://drive.google.com/file/d/{file_id}/view?usp=sharing)')
+                    
         else:
             st.error("未收到有效的分析結果。")
 else:
